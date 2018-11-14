@@ -40,6 +40,7 @@ from util import pretty_ts
 from util import resolve_string
 from util import ts_now
 from util import ts_to_dt
+from util import render_jinja_template
 
 
 class DateTimeEncoder(json.JSONEncoder):
@@ -64,7 +65,11 @@ class BasicMatchString(object):
     def _add_custom_alert_text(self):
         missing = self.rule.get('alert_missing_value', '<MISSING VALUE>')
         alert_text = unicode(self.rule.get('alert_text', ''))
-        if 'alert_text_args' in self.rule:
+        if 'alert_text_template' in self.rule:
+            template_file_path = os.path.join(os.getcwd(), self.rule["template_folder"])
+            variables = {'m': self.match, 'r': self.rule}
+            alert_text = render_jinja_template(template_file_path, self.rule.get('alert_text_template'), variables)
+        elif 'alert_text_args' in self.rule:
             alert_text_args = self.rule.get('alert_text_args')
             alert_text_values = [lookup_es_key(self.match, arg) for arg in alert_text_args]
 
@@ -80,7 +85,7 @@ class BasicMatchString(object):
             alert_text_values = [missing if val is None else val for val in alert_text_values]
             alert_text = alert_text.format(*alert_text_values)
         elif 'alert_text_kw' in self.rule:
-            kw = {}
+            kw = dict(self.match)
             for name, kw_name in self.rule.get('alert_text_kw').items():
                 val = lookup_es_key(self.match, name)
 

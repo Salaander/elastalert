@@ -10,9 +10,24 @@ from auth import Auth
 from elasticsearch import RequestsHttpConnection
 from elasticsearch.client import Elasticsearch
 from six import string_types
+## required for jinja2 support
+from jinja2 import Environment, FileSystemLoader, StrictUndefined
+import jmespath
+
 
 logging.basicConfig()
 elastalert_logger = logging.getLogger('elastalert')
+
+def render_jinja_template(template_folder, template_file, variables):
+    env = Environment(loader=FileSystemLoader(template_folder),
+                      trim_blocks=True,
+                      lstrip_blocks=True,
+                      undefined=StrictUndefined,
+                      variable_start_string="[[",
+                      variable_end_string="]]")
+    env.filters['json_query'] = lambda data, expr: jmespath.search(expr, data)
+    template = env.get_template(template_file)
+    return template.render(**variables)
 
 
 def new_get_event_ts(ts_field):
