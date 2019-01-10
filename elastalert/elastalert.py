@@ -105,28 +105,6 @@ class ElastAlerter():
         self.debug = self.args.debug
         self.verbose = self.args.verbose
 
-        if self.verbose and self.debug:
-            elastalert_logger.info(
-                "Note: --debug and --verbose flags are set. --debug takes precedent."
-            )
-
-        if self.verbose or self.debug:
-            elastalert_logger.setLevel(logging.INFO)
-
-        if self.debug:
-            elastalert_logger.info(
-                """Note: In debug mode, alerts will be logged to console but NOT actually sent.
-                To send them but remain verbose, use --verbose instead."""
-            )
-
-        if not self.args.es_debug:
-            logging.getLogger('elasticsearch').setLevel(logging.WARNING)
-
-        if self.args.es_debug_trace:
-            tracer = logging.getLogger('elasticsearch.trace')
-            tracer.setLevel(logging.INFO)
-            tracer.addHandler(logging.FileHandler(self.args.es_debug_trace))
-
         self.conf = load_rules(self.args)
         self.max_query_size = self.conf['max_query_size']
         self.scroll_keepalive = self.conf['scroll_keepalive']
@@ -153,6 +131,7 @@ class ElastAlerter():
         self.disabled_rules = []
         self.replace_dots_in_field_names = self.conf.get('replace_dots_in_field_names', False)
         self.string_multi_field_name = self.conf.get('string_multi_field_name', False)
+        self.add_metadata_alert = self.conf.get('add_metadata_alert', False)
 
         self.writeback_es = elasticsearch_client(self.conf)
         self._es_version = None
@@ -280,7 +259,9 @@ class ElastAlerter():
 
         if query_key is not None:
             for idx, key in reversed(list(enumerate(query_key.split(',')))):
-                aggs_element = {'bucket_aggs': {'terms': {'field': key, 'size': terms_size}, 'aggs': aggs_element}}
+                aggs_element = {'bucket_aggs': {'terms': {'field': key, 'size': terms_size,
+                                                          'min_doc_count': rule.get('min_doc_count', 1)},
+                                                'aggs': aggs_element}}
 
         if not rule['five']:
             query_element['filtered'].update({'aggs': aggs_element})
@@ -688,7 +669,6 @@ class ElastAlerter():
 
     def set_starttime(self, rule, endtime):
         """ Given a rule and an endtime, sets the appropriate starttime for it. """
-
         # This means we are starting fresh
         if 'starttime' not in rule:
             if not rule.get('scan_entire_timeframe'):
@@ -714,12 +694,9 @@ class ElastAlerter():
             if 'minimum_starttime' in rule and rule['minimum_starttime'] > buffer_delta:
                 rule['starttime'] = rule['minimum_starttime']
             # If buffer_time doesn't bring us past the previous endtime, use that instead
-            elif 'previous_endtime' in rule:
-                if rule['previous_endtime'] < buffer_delta:
-                    rule['starttime'] = rule['previous_endtime']
-                    self.adjust_start_time_for_overlapping_agg_query(rule)
-                elif rule.get('allow_buffer_time_overlap'):
-                    rule['starttime'] = buffer_delta
+            elif 'previous_endtime' in rule and rule['previous_endtime'] < buffer_delta:
+                rule['starttime'] = rule['previous_endtime']
+                self.adjust_start_time_for_overlapping_agg_query(rule)
             else:
                 rule['starttime'] = buffer_delta
 
@@ -842,7 +819,6 @@ class ElastAlerter():
         :return: The number of matches that the rule produced.
         """
         run_start = time.time()
-
         self.current_es = elasticsearch_client(rule)
         self.current_es_addr = (rule['es_host'], rule['es_port'])
 
@@ -1474,6 +1450,12 @@ class ElastAlerter():
             'alert_sent': alert_sent,
             'alert_time': alert_time
         }
+
+        if self.add_metadata_alert:
+            body['category'] = rule['category']
+            body['description'] = rule['description']
+            body['owner'] = rule['owner']
+            body['priority'] = rule['priority']
 
         match_time = lookup_es_key(match, rule['timestamp_field'])
         if match_time is not None:

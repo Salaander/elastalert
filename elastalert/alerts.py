@@ -369,8 +369,9 @@ class StompAlerter(Alerter):
         self.stomp_password = self.rule.get('stomp_password', 'admin')
         self.stomp_destination = self.rule.get(
             'stomp_destination', '/queue/ALERT')
+        self.stomp_ssl = self.rule.get('stomp_ssl', False)
 
-        conn = stomp.Connection([(self.stomp_hostname, self.stomp_hostport)])
+        conn = stomp.Connection([(self.stomp_hostname, self.stomp_hostport)], use_ssl=self.stomp_ssl)
 
         conn.start()
         conn.connect(self.stomp_login, self.stomp_password)
@@ -1117,6 +1118,7 @@ class SlackAlerter(Alerter):
         if isinstance(self.slack_channel_override, basestring):
             self.slack_channel_override = [self.slack_channel_override]
         self.slack_title_link = self.rule.get('slack_title_link', '')
+        self.slack_title = self.rule.get('slack_title', '')
         self.slack_emoji_override = self.rule.get('slack_emoji_override', ':ghost:')
         self.slack_icon_url_override = self.rule.get('slack_icon_url_override', '')
         self.slack_msg_color = self.rule.get('slack_msg_color', 'danger')
@@ -1181,6 +1183,9 @@ class SlackAlerter(Alerter):
         else:
             payload['icon_emoji'] = self.slack_emoji_override
 
+        if self.slack_title != '':
+            payload['attachments'][0]['title'] = self.slack_title
+
         if self.slack_title_link != '':
             payload['attachments'][0]['title_link'] = self.slack_title_link
 
@@ -1203,8 +1208,7 @@ class SlackAlerter(Alerter):
 
     def get_info(self):
         return {'type': 'slack',
-                'slack_username_override': self.slack_username_override,
-                'slack_webhook_url': self.slack_webhook_url}
+                'slack_username_override': self.slack_username_override}
 
 
 class MattermostAlerter(Alerter):
@@ -1445,6 +1449,39 @@ class PagerDutyAlerter(Alerter):
     def get_info(self):
         return {'type': 'pagerduty',
                 'pagerduty_client_name': self.pagerduty_client_name}
+
+
+class PagerTreeAlerter(Alerter):
+    """ Creates a PagerTree Incident for each alert """
+    required_options = frozenset(['pagertree_integration_url'])
+
+    def __init__(self, rule):
+        super(PagerTreeAlerter, self).__init__(rule)
+        self.url = self.rule['pagertree_integration_url']
+        self.pagertree_proxy = self.rule.get('pagertree_proxy', None)
+
+    def alert(self, matches):
+        # post to pagertree
+        headers = {'content-type': 'application/json'}
+        # set https proxy, if it was provided
+        proxies = {'https': self.pagertree_proxy} if self.pagertree_proxy else None
+        payload = {
+            "event_type": "create",
+            "Id": str(uuid.uuid4()),
+            "Title": self.create_title(matches),
+            "Description": self.create_alert_body(matches)
+        }
+
+        try:
+            response = requests.post(self.url, data=json.dumps(payload, cls=DateTimeEncoder), headers=headers, proxies=proxies)
+            response.raise_for_status()
+        except RequestException as e:
+            raise EAException("Error posting to PagerTree: %s" % e)
+        elastalert_logger.info("Trigger sent to PagerTree")
+
+    def get_info(self):
+        return {'type': 'pagertree',
+                'pagertree_integration_url': self.url}
 
 
 class ExotelAlerter(Alerter):
@@ -2023,7 +2060,36 @@ class StrideAlerter(Alerter):
     def get_info(self):
         return {'type': 'stride',
                 'stride_cloud_id': self.stride_cloud_id,
-                'stride_conversation_id': self.stride_conversation_id}
+                'stride_converstation_id': self.stride_converstation_id}
+
+
+class LineNotifyAlerter(Alerter):
+    """ Created a Line Notify for each alert """
+    required_option = frozenset(["linenotify_access_token"])
+
+    def __init__(self, rule):
+        super(LineNotifyAlerter, self).__init__(rule)
+        self.linenotify_access_token = self.rule["linenotify_access_token"]
+
+    def alert(self, matches):
+        body = self.create_alert_body(matches)
+        # post to Line Notify
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Authorization": "Bearer {}".format(self.linenotify_access_token)
+        }
+        payload = {
+            "message": body
+        }
+        try:
+            response = requests.post("https://notify-api.line.me/api/notify", data=payload, headers=headers)
+            response.raise_for_status()
+        except RequestException as e:
+            raise EAException("Error posting to Line Notify: %s" % e)
+        elastalert_logger.info("Alert sent to Line Notify")
+
+    def get_info(self):
+        return {"type": "linenotify", "linenotify_access_token": self.linenotify_access_token}
 
 
 class HiveAlerter(Alerter):
