@@ -166,6 +166,28 @@ class JiraFormattedMatchString(BasicMatchString):
         self.text += preformatted_text
 
 
+class AggregateMatchesString(object):
+
+    def __init__(self, rule, matches):
+        self.rule = rule
+        self.matches = matches
+
+    def create_custom_text(self):
+        template_file = self.rule.get('alert_text_template')
+        if 'alert_text_template' not in self.rule:
+            raise Exception()
+
+        template_file_path = os.path.join(os.getcwd(),
+                                          self.rule["template_folder"])
+        variables = {'matches': self.matches, 'rule': self.rule}
+        return render_jinja_template(template_file_path,
+                                     template_file,
+                                     variables)
+
+    def __str__(self):
+        return self.create_custom_text()
+
+
 class Alerter(object):
     """ Base class for types of alerts.
 
@@ -252,6 +274,8 @@ class Alerter(object):
         return alert_subject
 
     def create_alert_body(self, matches):
+        if self.rule.get("alert_text_aggregated", False) is True:
+            return unicode(AggregateMatchesString(self.rule, matches))
         body = self.get_aggregation_summary_text(matches)
         if self.rule.get('alert_text_type') != 'aggregation_summary_only':
             for match in matches:
@@ -816,7 +840,10 @@ class JiraAlerter(Alerter):
             return None
 
         self.jira_args['summary'] = title
-        self.jira_args['description'] = self.create_alert_body(matches)
+        if self.rule.get("alert_text_aggregated", False) is True:
+            self.jira_args['description'] = unicode(AggregateMatchesString(self.rule, matches))
+        else:
+            self.jira_args['description'] = self.create_alert_body(matches)
 
         try:
             self.issue = self.client.create_issue(**self.jira_args)
