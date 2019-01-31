@@ -775,7 +775,10 @@ class JiraAlerter(Alerter):
             return issues[0]
 
     def comment_on_ticket(self, ticket, match):
-        text = unicode(JiraFormattedMatchString(self.rule, match))
+        if self.rule.get("alert_text_aggregated", False) is True:
+            text = unicode(AggregateMatchesString(self.rule, [match]))
+        else:
+            text = unicode(JiraFormattedMatchString(self.rule, match))
         timestamp = pretty_ts(lookup_es_key(match, self.rule['timestamp_field']))
         comment = "This alert was triggered again at %s\n%s" % (timestamp, text)
         self.client.add_comment(ticket, comment)
