@@ -66,9 +66,8 @@ class BasicMatchString(object):
         missing = self.rule.get('alert_missing_value', '<MISSING VALUE>')
         alert_text = unicode(self.rule.get('alert_text', ''))
         if 'alert_text_template' in self.rule:
-            template_file_path = os.path.join(os.getcwd(), self.rule["template_folder"])
-            variables = {'m': self.match, 'r': self.rule}
-            alert_text = render_jinja_template(template_file_path, self.rule.get('alert_text_template'), variables)
+            variables = {'match': self.match, 'rule': self.rule}
+            alert_text = render_jinja_template(self.rule["template_folder"], self.rule.get('alert_text_template'), variables)
         elif 'alert_text_args' in self.rule:
             alert_text_args = self.rule.get('alert_text_args')
             alert_text_values = [lookup_es_key(self.match, arg) for arg in alert_text_args]
@@ -173,15 +172,9 @@ class AggregateMatchesString(object):
         self.matches = matches
 
     def create_custom_text(self):
-        template_file = self.rule.get('alert_text_template')
-        if 'alert_text_template' not in self.rule:
-            raise Exception()
-
-        template_file_path = os.path.join(os.getcwd(),
-                                          self.rule["template_folder"])
         variables = {'matches': self.matches, 'rule': self.rule}
-        return render_jinja_template(template_file_path,
-                                     template_file,
+        return render_jinja_template(self.rule["template_folder"],
+                                     self.rule.get('alert_text_template'),
                                      variables)
 
     def __str__(self):

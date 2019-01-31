@@ -210,6 +210,9 @@ properties:
   alert_missing_value: {type: string}
   timestamp_field: {type: string}
   field: {}
+  template_folder: {type: string}
+  alert_text_aggregated: {type: boolean}
+  alert_text_template: {type: string}
 
   ### Commands
   command: *arrayOfString

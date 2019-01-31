@@ -10,24 +10,29 @@ from auth import Auth
 from elasticsearch import RequestsHttpConnection
 from elasticsearch.client import Elasticsearch
 from six import string_types
-## required for jinja2 support
-from jinja2 import Environment, FileSystemLoader, StrictUndefined
+from jinja2 import Environment, FileSystemLoader, StrictUndefined, TemplateError
 import jmespath
 
 
 logging.basicConfig()
 elastalert_logger = logging.getLogger('elastalert')
 
-def render_jinja_template(template_folder, template_file, variables):
+
+def render_jinja_template(template_file_path, template_file, variables):
+    template_folder = os.path.join(os.getcwd(), template_file_path)
     env = Environment(loader=FileSystemLoader(template_folder),
                       trim_blocks=True,
                       lstrip_blocks=True,
-                      undefined=StrictUndefined,
-                      variable_start_string="[[",
-                      variable_end_string="]]")
+                      undefined=StrictUndefined)
     env.filters['json_query'] = lambda data, expr: jmespath.search(expr, data)
     template = env.get_template(template_file)
-    return template.render(**variables)
+    rendered_template = ""
+    try:
+        rendered_template = template.render(**variables)
+    except TemplateError as e:
+        elastalert_logger.error("Error while rendering template file {}. Message: {}".format(template_file, e))
+
+    return rendered_template
 
 
 def new_get_event_ts(ts_field):
