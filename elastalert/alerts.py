@@ -164,7 +164,7 @@ class JiraFormattedMatchString(BasicMatchString):
         self.text += preformatted_text
 
 
-class AggregateMatchesString(object):
+class JinjaMatchesString(object):
 
     def __init__(self, rule, matches):
         self.rule = rule
@@ -271,7 +271,7 @@ class Alerter(object):
 
     def create_alert_body(self, matches):
         if self.rule.get("alert_text_aggregated", False) is True:
-            return unicode(AggregateMatchesString(self.rule, matches))
+            return unicode(JinjaMatchesString(self.rule, matches))
         body = self.get_aggregation_summary_text(matches)
         if self.rule.get('alert_text_type') != 'aggregation_summary_only':
             for match in matches:
@@ -779,7 +779,7 @@ class JiraAlerter(Alerter):
 
     def comment_on_ticket(self, ticket, match):
         if self.rule.get("alert_text_aggregated", False) is True:
-            text = unicode(AggregateMatchesString(self.rule, [match]))
+            text = unicode(JinjaMatchesString(self.rule, [match]))
         else:
             text = unicode(JiraFormattedMatchString(self.rule, match))
         timestamp = pretty_ts(lookup_es_key(match, self.rule['timestamp_field']))
@@ -840,7 +840,7 @@ class JiraAlerter(Alerter):
 
         self.jira_args['summary'] = title
         if self.rule.get("alert_text_aggregated", False) is True:
-            self.jira_args['description'] = unicode(AggregateMatchesString(self.rule, matches))
+            self.jira_args['description'] = unicode(JinjaMatchesString(self.rule, matches))
         else:
             self.jira_args['description'] = self.create_alert_body(matches)
 
