@@ -779,7 +779,10 @@ class JiraAlerter(Alerter):
 
     def comment_on_ticket(self, ticket, match):
         if self.rule.get("alert_text_aggregated", False) is True:
-            text = unicode(JinjaMatchesString(self.rule, [match]))
+            if isinstance(match, list):
+                text = unicode(JinjaMatchesString(self.rule, match))
+            else:
+                text = unicode(JinjaMatchesString(self.rule, [match]))
         else:
             text = unicode(JiraFormattedMatchString(self.rule, match))
         timestamp = pretty_ts(lookup_es_key(match, self.rule['timestamp_field']))
@@ -813,11 +816,17 @@ class JiraAlerter(Alerter):
                         self.pipeline['jira_server'] = self.server
                     return None
                 elastalert_logger.info('Commenting on existing ticket %s' % (ticket.key))
-                for match in matches:
+                if self.rule.get("alert_text_aggregated", False) is True:
                     try:
-                        self.comment_on_ticket(ticket, match)
+                        self.comment_on_ticket(ticket, matches)
                     except JIRAError as e:
                         elastalert_logger.exception("Error while commenting on ticket %s: %s" % (ticket, e))
+                else:
+                    for match in matches:
+                        try:
+                            self.comment_on_ticket(ticket, match)
+                        except JIRAError as e:
+                            elastalert_logger.exception("Error while commenting on ticket %s: %s" % (ticket, e))
                 if self.labels:
                     for l in self.labels:
                         try:
