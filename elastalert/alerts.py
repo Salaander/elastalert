@@ -785,8 +785,9 @@ class JiraAlerter(Alerter):
                 text = unicode(JinjaMatchesString(self.rule, [match]))
         else:
             text = unicode(JiraFormattedMatchString(self.rule, match))
-        timestamp = pretty_ts(lookup_es_key(match, self.rule['timestamp_field']))
-        comment = "This alert was triggered again at %s\n%s" % (timestamp, text)
+        first_match = match[0] if isinstance(match, list) else match
+        timestamp = pretty_ts(lookup_es_key(first_match, self.rule['timestamp_field']))
+        comment = "This alert was triggered again at first %s\n%s" % (timestamp, text)
         self.client.add_comment(ticket, comment)
 
     def transition_ticket(self, ticket):
