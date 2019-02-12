@@ -818,12 +818,12 @@ class JiraAlerter(Alerter):
                         self.comment_on_ticket(ticket, match)
                     except JIRAError as e:
                         elastalert_logger.exception("Error while commenting on ticket %s: %s" % (ticket, e))
-                    if self.labels:
-                        for l in self.labels:
-                            try:
-                                ticket.fields.labels.append(l)
-                            except JIRAError as e:
-                                elastalert_logger.exception("Error while appending labels to ticket %s: %s" % (ticket, e))
+                if self.labels:
+                    for l in self.labels:
+                        try:
+                            ticket.fields.labels.append(l)
+                        except JIRAError as e:
+                            elastalert_logger.exception("Error while appending labels to ticket %s: %s" % (ticket, e))
                 if self.transition:
                     elastalert_logger.info('Transitioning existing ticket %s' % (ticket.key))
                     try:
