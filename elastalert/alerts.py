@@ -553,6 +553,7 @@ class JiraAlerter(Alerter):
         'jira_project',
         'jira_server',
         'jira_transition_to',
+        'jira_transition_from',
         'jira_watchers',
     ]
 
@@ -597,6 +598,7 @@ class JiraAlerter(Alerter):
         self.bump_after_inactivity = self.rule.get('jira_bump_after_inactivity', 0)
         self.bump_only = self.rule.get('jira_bump_only', False)
         self.transition = self.rule.get('jira_transition_to', False)
+        self.transition_from = self.rule.get('jira_transition_from')
         self.watchers = self.rule.get('jira_watchers')
         self.client = None
 
@@ -834,13 +836,12 @@ class JiraAlerter(Alerter):
                             ticket.fields.labels.append(l)
                         except JIRAError as e:
                             elastalert_logger.exception("Error while appending labels to ticket %s: %s" % (ticket, e))
-                if self.transition:
+                if self.transition and ticket.fields.status.name in self.transition_from:
                     elastalert_logger.info('Transitioning existing ticket %s' % (ticket.key))
                     try:
                         self.transition_ticket(ticket)
                     except JIRAError as e:
                         elastalert_logger.exception("Error while transitioning ticket %s: %s" % (ticket, e))
-
                 if self.pipeline is not None:
                     self.pipeline['jira_ticket'] = ticket
                     self.pipeline['jira_server'] = self.server

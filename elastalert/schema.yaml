@@ -242,6 +242,8 @@ properties:
   jira_bump_not_in_statuses: *arrayOfString
   jira_max_age: {type: number}
   jira_watchers: *arrayOfString
+  jira_transition_to: {type: string}
+  jira_transition_from: *arrayOfString
 
   ### HipChat
   hipchat_auth_token: {type: string}
